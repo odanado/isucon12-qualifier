@@ -11,9 +11,8 @@ for server in isu1; do
     ssh -t $server "sudo systemctl stop mysql.service"
 
     rsync -a --rsync-path="sudo -u isucon rsync" --exclude "node_modules" $ROOT/node/ $server:/home/isucon/webapp/node/
-
     rsync -a --rsync-path="sudo -u isucon rsync" $ROOT/sql/ $server:/home/isucon/webapp/sql/
-    rsync -a --rsync-path="sudo -u isucon rsync" $ROOT/env.sh $server:/home/isucon/env.sh
+    rsync -a --rsync-path="sudo -u isucon rsync" $ROOT/docker-compose-node.yml $server:/home/isucon/webapp/docker-compose-node.yml
     rsync -a --rsync-path="sudo rsync" $ROOT/nginx/sites-available/ $server:/etc/nginx/sites-available/
     rsync -a --rsync-path="sudo rsync" $ROOT/nginx/nginx.conf $server:/etc/nginx/nginx.conf
     rsync -a --rsync-path="sudo rsync" $ROOT/mysql/mysql.cnf $server:/etc/mysql/mysql.cnf
