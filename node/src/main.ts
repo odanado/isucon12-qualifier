@@ -692,6 +692,8 @@ app.get(
         throw new Error(`error Select tenant: ${error}`)
       }
 
+      const tenantDB = tenantDBMaster
+
       for (const tenant of ts) {
         if (beforeId !== 0 && beforeId <= tenant.id) {
           continue
@@ -704,19 +706,14 @@ app.get(
           billing: 0,
         }
 
-        const tenantDB = tenantDBMaster
-        try {
-          const [competitions] = await tenantDB.query<(CompetitionRow & RowDataPacket)[]>(
-            'SELECT * FROM competition WHERE tenant_id = ?',
-            [tenant.id]
-          )
+        const [competitions] = await tenantDB.query<(CompetitionRow & RowDataPacket)[]>(
+          'SELECT * FROM competition WHERE tenant_id = ?',
+          [tenant.id]
+        )
 
-          for (const comp of competitions) {
-            const report = await billingReportByCompetition(tenantDB, tenant.id, comp.id)
-            tb.billing += report.billing_yen
-          }
-        } finally {
-          // tenantDB.close()
+        for (const comp of competitions) {
+          const report = await billingReportByCompetition(tenantDB, tenant.id, comp.id)
+          tb.billing += report.billing_yen
         }
 
         tenantBillings.push(tb)
