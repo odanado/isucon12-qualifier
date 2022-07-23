@@ -6,9 +6,12 @@ ROOT=$(cd $(dirname $0);pwd)
 
 echo "start deploy ${USER}"
 for server in isu1; do
+    ssh -t $server "redis-cli FLUSHALL"
+
     ssh -t $server "sudo systemctl stop isuports.service"
     ssh -t $server "sudo systemctl stop nginx.service"
     ssh -t $server "sudo systemctl stop mysql.service"
+    ssh -t $server "sudo systemctl stop redis-server.service"
 
     rsync -a --rsync-path="sudo -u isucon rsync" --exclude "node_modules" $ROOT/node/ $server:/home/isucon/webapp/node/
     rsync -a --rsync-path="sudo -u isucon rsync" $ROOT/sql/ $server:/home/isucon/webapp/sql/
@@ -22,10 +25,16 @@ for server in isu1; do
 
     # ssh -t $server "export PATH=$SERVER_PATH; cd webapp/node/; pwd; npm ci"
 
+
+    # Redis
+    ssh -t $server "sudo cp /home/isucon/webapp/sql/redis-dump.rdb /var/lib/redis/dump.rdb"
+    
+
     ssh -t $server "sudo systemctl daemon-reload"
     ssh -t $server "sudo systemctl start isuports.service"
     ssh -t $server "sudo systemctl start nginx.service"
     # ref: https://abyssluke.hatenablog.com/entry/2015/12/11/203707
     ssh -t $server "sudo nginx -s reload"
     ssh -t $server "sudo systemctl start mysql.service"
+    ssh -t $server "sudo systemctl start redis-server.service"
 done

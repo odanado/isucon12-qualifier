@@ -1,6 +1,6 @@
-import { setupDatadog } from "./setup-tracing";
+import { setupDatadog } from './setup-tracing'
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const tracer = setupDatadog();
+const tracer = setupDatadog()
 
 import express, { Request, Response, NextFunction, RequestHandler } from 'express'
 import cookieParser from 'cookie-parser'
@@ -17,9 +17,11 @@ import { open, Database } from 'sqlite'
 import { openSync, closeSync } from 'fs'
 import fsExt from 'fs-ext'
 import { parse } from 'csv-parse/sync'
-import { ulid } from "ulid";
+import { ulid } from 'ulid'
+import Redis from 'ioredis'
 
 import { useSqliteTraceHook } from './sqltrace'
+import { addScore, getRankingForCompetition, getScores, initScore, resetCompetition } from './player-score'
 
 const exec = util.promisify(childProcess.exec)
 const flock = util.promisify(fsExt.flock)
@@ -55,6 +57,8 @@ const dbConfig = {
   database: process.env['ISUCON_DB_NAME'] ?? 'isucon_listen80',
 }
 const adminDB = mysql.createPool(dbConfig)
+
+const redis = new Redis()
 
 // テナントDBのパスを返す
 function tenantDBPath(id: number): string {
@@ -248,7 +252,7 @@ interface PlayerRow {
   updated_at: number
 }
 
-interface PlayerScoreRow {
+export interface PlayerScoreRow {
   tenant_id: number
   id: string
   player_id: string
@@ -279,8 +283,8 @@ const wrap =
 
 // リクエストヘッダをパースしてViewerを返す
 async function parseViewer(req: Request): Promise<Viewer> {
-  return tracer.trace("parseViewer", async () => {
-    return originalParseViewer(req);
+  return tracer.trace('parseViewer', async () => {
+    return originalParseViewer(req)
   })
 }
 async function originalParseViewer(req: Request): Promise<Viewer> {
@@ -375,8 +379,8 @@ async function retrieveTenantRowFromHeader(req: Request): Promise<TenantRow | un
 
 // 参加者を取得する
 async function retrievePlayer(tenantDB: Database, id: string): Promise<PlayerRow | undefined> {
-  return tracer.trace("retrievePlayer", () => {
-    return originalRetrievePlayer(tenantDB, id);
+  return tracer.trace('retrievePlayer', () => {
+    return originalRetrievePlayer(tenantDB, id)
   })
 }
 async function originalRetrievePlayer(tenantDB: Database, id: string): Promise<PlayerRow | undefined> {
@@ -390,15 +394,14 @@ async function originalRetrievePlayer(tenantDB: Database, id: string): Promise<P
 
 // 参加者一覧を取得する
 async function retrievePlayers(tenantDB: Database, ids: string[]): Promise<PlayerRow[]> {
-  return tracer.trace("retrievePlayers", () => {
-    return originalretrievePlayers(tenantDB, ids);
+  return tracer.trace('retrievePlayers', () => {
+    return originalretrievePlayers(tenantDB, ids)
   })
-  
 }
 async function originalretrievePlayers(tenantDB: Database, ids: string[]): Promise<PlayerRow[]> {
   try {
     // XXX: https://stackoverflow.com/questions/4788724/sqlite-bind-list-of-values-to-where-col-in-prm
-    const hatena = ids.map(() => "?").join(",")
+    const hatena = ids.map(() => '?').join(',')
     const playerRow = await tenantDB.all<PlayerRow[]>(`SELECT * FROM player WHERE id IN (${hatena})`, ids)
     return playerRow ?? []
   } catch (error) {
@@ -410,8 +413,8 @@ async function originalretrievePlayers(tenantDB: Database, ids: string[]): Promi
 // 参加者向けAPIで呼ばれる
 
 async function authorizePlayer(tenantDB: Database, id: string): Promise<Error | undefined> {
-  return tracer.trace("authorizePlayer", () => {
-    return originalAuthorizePlayer(tenantDB, id);
+  return tracer.trace('authorizePlayer', () => {
+    return originalAuthorizePlayer(tenantDB, id)
   })
 }
 async function originalAuthorizePlayer(tenantDB: Database, id: string): Promise<Error | undefined> {
@@ -432,8 +435,8 @@ async function originalAuthorizePlayer(tenantDB: Database, id: string): Promise<
 // 大会を取得する
 
 async function retrieveCompetition(tenantDB: Database, id: string): Promise<CompetitionRow | undefined> {
-  return tracer.trace("retrieveCompetition", () => {
-    return originalRetrieveCompetition(tenantDB, id);
+  return tracer.trace('retrieveCompetition', () => {
+    return originalRetrieveCompetition(tenantDB, id)
   })
 }
 async function originalRetrieveCompetition(tenantDB: Database, id: string): Promise<CompetitionRow | undefined> {
@@ -447,16 +450,19 @@ async function originalRetrieveCompetition(tenantDB: Database, id: string): Prom
 
 // 大会の一覧を取得する
 async function retrieveCompetitions(tenantDB: Database, ids: string[]): Promise<CompetitionRow[]> {
-  return tracer.trace("retrieveCompetitions", () => {
-    return originalretrieveCompetitions(tenantDB, ids);
+  return tracer.trace('retrieveCompetitions', () => {
+    return originalretrieveCompetitions(tenantDB, ids)
   })
 }
 
 async function originalretrieveCompetitions(tenantDB: Database, ids: string[]): Promise<CompetitionRow[]> {
   try {
     // XXX: https://stackoverflow.com/questions/4788724/sqlite-bind-list-of-values-to-where-col-in-prm
-    const hatena = ids.map(() => "?").join(",")
-    const competitionRow = await tenantDB.all<CompetitionRow[]>(`SELECT * FROM competition WHERE id IN (${hatena})`, ids)
+    const hatena = ids.map(() => '?').join(',')
+    const competitionRow = await tenantDB.all<CompetitionRow[]>(
+      `SELECT * FROM competition WHERE id IN (${hatena})`,
+      ids
+    )
     return competitionRow ?? []
   } catch (error) {
     throw new Error(`error Select competition: ids=${ids}, ${error}`)
@@ -475,8 +481,8 @@ async function asyncSleep(ms: number) {
 
 // 排他ロックする
 async function flockByTenantID(tenantId: number): Promise<() => Promise<void>> {
-  return tracer.trace("flockByTenantID", { type: "lock" }, () => {
-    return originalFlockByTenantID(tenantId);
+  return tracer.trace('flockByTenantID', { type: 'lock' }, () => {
+    return originalFlockByTenantID(tenantId)
   })
 }
 async function originalFlockByTenantID(tenantId: number): Promise<() => Promise<void>> {
@@ -1112,10 +1118,17 @@ app.post(
             })
           }
 
+          await resetCompetition(redis, tenantDB, viewer.tenantId, competitionId)
           await tenantDB.run(
             'DELETE FROM player_score WHERE tenant_id = ? AND competition_id = ?',
             viewer.tenantId,
             competitionId
+          )
+
+          await addScore(
+            redis,
+            competitionId,
+            playerScoreRows.map((x) => ({ score: x.score, playerId: x.player_id }))
           )
 
           for (const row of playerScoreRows) {
@@ -1297,40 +1310,25 @@ app.get(
           is_disqualified: !!p.is_disqualified,
         }
 
-        const competitions = await tenantDB.all<CompetitionRow[]>('SELECT * FROM competition WHERE tenant_id = ? ORDER BY created_at ASC', viewer.tenantId)
-
-        const pss: PlayerScoreRow[] = []
+        const scores = await getScores(redis, tenantDB, viewer.tenantId, p.id)
 
         // player_scoreを読んでいるときに更新が走ると不整合が起こるのでロックを取得する
         const unlock = await flockByTenantID(viewer.tenantId)
         try {
-          for (const comp of competitions) {
-            const ps = await tenantDB.get<PlayerScoreRow>(
-              // 最後にCSVに登場したスコアを採用する = row_numが一番大きいもの
-              'SELECT * FROM player_score WHERE tenant_id = ? AND competition_id = ? AND player_id = ? ORDER BY row_num DESC LIMIT 1',
-              viewer.tenantId,
-              comp.id,
-              p.id
-            )
-            if (!ps) {
-              // 行がない = スコアが記録されてない
-              continue
-            }
-
-            pss.push(ps)
-          }
-
-          const ids = pss.map(ps => ps.competition_id);
+          const ids = scores.map((x) => x.competitionId)
           const comps = await retrieveCompetitions(tenantDB, ids)
-          const compMap = new Map(comps.map((comp) => [comp.id, comp]));
-          for (const ps of pss) {
-            const comp = compMap.get(ps.competition_id);
+          const compMap = new Map(comps.map((comp) => [comp.id, comp]))
+
+          for (const score of scores) {
+            const comp = compMap.get(score.competitionId)
+
             if (!comp) {
               throw new Error('error retrieveCompetition')
             }
+
             psds.push({
               competition_title: comp?.title,
-              score: ps.score,
+              score: score.score,
             })
           }
         } finally {
@@ -1407,60 +1405,35 @@ app.get(
         let rankAfter: number
         if (rankAfterStr) {
           rankAfter = parseInt(rankAfterStr.toString(), 10)
+        } else {
+          // 未定義のときは0で良いはず...
+          rankAfter = 0
         }
 
         // player_scoreを読んでいるときに更新が走ると不整合が起こるのでロックを取得する
         const unlock = await flockByTenantID(tenant.id)
         try {
-          const pss = await tenantDB.all<PlayerScoreRow[]>(
-            'SELECT * FROM player_score WHERE tenant_id = ? AND competition_id = ? ORDER BY row_num DESC',
-            tenant.id,
-            competition.id
-          )
+          const ranking = await getRankingForCompetition(redis, competition.id, rankAfter)
 
-          const scoredPlayerSet: { [player_id: string]: number } = {}
-          const tmpRanks: (CompetitionRank & WithRowNum)[] = []
+          const playerIds = ranking.map((x) => x.playerId)
+          const players = await retrievePlayers(tenantDB, playerIds)
+          const playerMap = new Map(players.map((player) => [player.id, player]))
 
-          const ids = pss.map(ps => ps.player_id);
-          const players = await retrievePlayers(tenantDB, ids);
-          const playerMap = new Map(players.map(player => ([player.id, player])))
-
-          for (const ps of pss) {
-            // player_scoreが同一player_id内ではrow_numの降順でソートされているので
-            // 現れたのが2回目以降のplayer_idはより大きいrow_numでスコアが出ているとみなせる
-            if (scoredPlayerSet[ps.player_id]) {
-              continue
-            }
-            scoredPlayerSet[ps.player_id] = 1
-            const p = playerMap.get(ps.player_id)
-            if (!p) {
-              throw new Error('error retrievePlayer')
-            }
-
-            tmpRanks.push({
-              rank: 0,
-              score: ps.score,
-              player_id: p.id,
-              player_display_name: p.display_name,
-              row_num: ps.row_num,
-            })
-          }
-
-          tmpRanks.sort((a, b) => {
-            if (a.score === b.score) {
-              return a.row_num < b.row_num ? -1 : 1
-            }
-            return a.score > b.score ? -1 : 1
-          })
-
-          tmpRanks.forEach((rank, index) => {
-            if (index < rankAfter) return
+          // TODO: ここで 101, 0, 0 になっている
+          // 別テナントの playerId が渡っているっぽい？
+          console.log(ranking.length, players.length, playerMap.size)
+          ranking.forEach((x, index) => {
             if (ranks.length >= 100) return
+            const player = playerMap.get(x.playerId)
+            if (!player) {
+              throw new Error(`playerMap にレコードが存在してなかったよ。そんなはずは...。${x.playerId}`)
+            }
+
             ranks.push({
-              rank: index + 1,
-              score: rank.score,
-              player_id: rank.player_id,
-              player_display_name: rank.player_display_name,
+              rank: index + 1 + rankAfter,
+              score: x.score,
+              player_id: x.playerId,
+              player_display_name: player.display_name,
             })
           })
         } finally {
@@ -1601,10 +1574,10 @@ app.post(
   wrap(async (req: Request, res: Response, _next: NextFunction) => {
     try {
       await exec(initializeScript)
-
       const data: InitializeResult = {
         lang: 'node',
       }
+
       res.status(200).json({
         status: true,
         data,
