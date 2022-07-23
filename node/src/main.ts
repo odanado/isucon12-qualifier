@@ -482,25 +482,25 @@ async function flockByTenantID(tenantId: number): Promise<() => Promise<void>> {
   })
 }
 async function originalFlockByTenantID(tenantId: number): Promise<() => Promise<void>> {
-  const p = lockFilePath(tenantId)
+  // const p = lockFilePath(tenantId)
 
-  const fd = openSync(p, 'w+')
-  for (;;) {
-    try {
-      await flock(fd, fsExt.constants.LOCK_EX | fsExt.constants.LOCK_NB)
-    } catch (error: any) {
-      if (error.code === 'EAGAIN' && error.errno === 11) {
-        await asyncSleep(10)
-        continue
-      }
-      throw new Error(`error flock: path=${p}, ${error}`)
-    }
-    break
-  }
+  // const fd = openSync(p, 'w+')
+  // for (;;) {
+  //   try {
+  //     await flock(fd, fsExt.constants.LOCK_EX | fsExt.constants.LOCK_NB)
+  //   } catch (error: any) {
+  //     if (error.code === 'EAGAIN' && error.errno === 11) {
+  //       await asyncSleep(10)
+  //       continue
+  //     }
+  //     throw new Error(`error flock: path=${p}, ${error}`)
+  //   }
+  //   break
+  // }
 
   const close = async () => {
-    await flock(fd, fsExt.constants.LOCK_UN)
-    closeSync(fd)
+    // await flock(fd, fsExt.constants.LOCK_UN)
+    // closeSync(fd)
   }
   return close
 }
