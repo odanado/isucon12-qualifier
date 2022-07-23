@@ -17,11 +17,11 @@ mysql -u"$ISUCON_DB_USER" \
 		"$ISUCON_DB_NAME" < init.sql
 
 # SQLiteのデータベースを初期化
-rm -f ../tenant_db/*.db
-cp -r ../../initial_data/*.db ../tenant_db/
+# rm -f ../tenant_db/*.db
+# cp -r ../../initial_data/*.db ../tenant_db/
 
 # マイグレーション
-for file in `ls ../tenant_db/*.db`; do
-		echo "migration ${file}"
-		sqlite3 $file < tenant/migration.sql
-done
+# for file in `ls ../tenant_db/*.db`; do
+# 		echo "migration ${file}"
+# 		sqlite3 $file < tenant/migration.sql
+# done
