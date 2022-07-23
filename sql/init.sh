@@ -21,7 +21,7 @@ rm -f ../tenant_db/*.db
 cp -r ../../initial_data/*.db ../tenant_db/
 
 # マイグレーション
-for file in `ls ../tenant_db/*.db`; do
-		echo "migration ${file}"
-		sqlite3 $file < tenant/migration.sql
-done
+# for file in `ls ../tenant_db/*.db`; do
+# 		echo "migration ${file}"
+# 		sqlite3 $file < tenant/migration.sql
+# done
