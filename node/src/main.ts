@@ -391,17 +391,17 @@ async function originalRetrievePlayer(tenantDB: mysql.Pool, id: string): Promise
 }
 
 // 参加者一覧を取得する
-async function retrievePlayers(tenantDB: Database, ids: string[]): Promise<PlayerRow[]> {
+async function retrievePlayers(tenantDB: mysql.Pool, ids: string[]): Promise<PlayerRow[]> {
   return tracer.trace("retrievePlayers", () => {
     return originalretrievePlayers(tenantDB, ids);
   })
   
 }
-async function originalretrievePlayers(tenantDB: Database, ids: string[]): Promise<PlayerRow[]> {
+async function originalretrievePlayers(tenantDB: mysql.Pool, ids: string[]): Promise<PlayerRow[]> {
   try {
     // XXX: https://stackoverflow.com/questions/4788724/sqlite-bind-list-of-values-to-where-col-in-prm
     const hatena = ids.map(() => "?").join(",")
-    const playerRow = await tenantDB.all<PlayerRow[]>(`SELECT * FROM player WHERE id IN (${hatena})`, ids)
+    const [playerRow] = await tenantDB.query<(PlayerRow & RowDataPacket)[]>(`SELECT * FROM player WHERE id IN (${hatena})`, ids)
     return playerRow ?? []
   } catch (error) {
     throw new Error(`error Select players: ids=${ids}, ${error}`)
@@ -448,17 +448,17 @@ async function originalRetrieveCompetition(tenantDB: mysql.Pool, id: string): Pr
 }
 
 // 大会の一覧を取得する
-async function retrieveCompetitions(tenantDB: Database, ids: string[]): Promise<CompetitionRow[]> {
+async function retrieveCompetitions(tenantDB: mysql.Pool, ids: string[]): Promise<CompetitionRow[]> {
   return tracer.trace("retrieveCompetitions", () => {
     return originalretrieveCompetitions(tenantDB, ids);
   })
 }
 
-async function originalretrieveCompetitions(tenantDB: Database, ids: string[]): Promise<CompetitionRow[]> {
+async function originalretrieveCompetitions(tenantDB: mysql.Pool, ids: string[]): Promise<CompetitionRow[]> {
   try {
     // XXX: https://stackoverflow.com/questions/4788724/sqlite-bind-list-of-values-to-where-col-in-prm
     const hatena = ids.map(() => "?").join(",")
-    const competitionRow = await tenantDB.all<CompetitionRow[]>(`SELECT * FROM competition WHERE id IN (${hatena})`, ids)
+    const [competitionRow] = await tenantDB.query<(CompetitionRow & RowDataPacket)[]>(`SELECT * FROM competition WHERE id IN (${hatena})`, ids)
     return competitionRow ?? []
   } catch (error) {
     throw new Error(`error Select competition: ids=${ids}, ${error}`)
