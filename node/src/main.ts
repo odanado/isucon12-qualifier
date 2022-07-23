@@ -17,6 +17,7 @@ import { open, Database } from 'sqlite'
 import { openSync, closeSync } from 'fs'
 import fsExt from 'fs-ext'
 import { parse } from 'csv-parse/sync'
+import { ulid } from "ulid";
 
 import { useSqliteTraceHook } from './sqltrace'
 
@@ -98,26 +99,7 @@ async function createTenantDB(id: number): Promise<Error | undefined> {
 
 // システム全体で一意なIDを生成する
 async function dispenseID(): Promise<string> {
-  let id = 0
-  let lastErr: any
-  for (const _ of Array(100)) {
-    try {
-      const [result] = await adminDB.execute<OkPacket>('REPLACE INTO id_generator (stub) VALUES (?)', ['a'])
-
-      id = result.insertId
-      break
-    } catch (error: any) {
-      // deadlock
-      if (error.errno && error.errno === 1213) {
-        lastErr = error
-      }
-    }
-  }
-  if (id !== 0) {
-    return id.toString(16)
-  }
-
-  throw new Error(`error REPLACE INTO id_generator: ${lastErr.toString()}`)
+  return ulid()
 }
 
 // カスタムエラーハンドラにステータスコード拾ってもらうエラー型
@@ -299,6 +281,11 @@ const wrap =
 
 // リクエストヘッダをパースしてViewerを返す
 async function parseViewer(req: Request): Promise<Viewer> {
+  return tracer.trace("parseViewer", async () => {
+    return originalParseViewer(req);
+  })
+}
+async function originalParseViewer(req: Request): Promise<Viewer> {
   const tokenStr = req.cookies[cookieName]
   if (!tokenStr) {
     throw new ErrorWithStatus(401, `cookie ${cookieName} is not found`)
@@ -390,6 +377,11 @@ async function retrieveTenantRowFromHeader(req: Request): Promise<TenantRow | un
 
 // 参加者を取得する
 async function retrievePlayer(tenantDB: mysql.Pool, id: string): Promise<PlayerRow | undefined> {
+  return tracer.trace("retrievePlayer", () => {
+    return originalRetrievePlayer(tenantDB, id);
+  })
+}
+async function originalRetrievePlayer(tenantDB: mysql.Pool, id: string): Promise<PlayerRow | undefined> {
   try {
     const [[playerRow]] = await tenantDB.query<(PlayerRow & RowDataPacket)[]>('SELECT * FROM player WHERE id = ?', [id])
     return playerRow
@@ -398,9 +390,33 @@ async function retrievePlayer(tenantDB: mysql.Pool, id: string): Promise<PlayerR
   }
 }
 
+// 参加者一覧を取得する
+async function retrievePlayers(tenantDB: Database, ids: string[]): Promise<PlayerRow[]> {
+  return tracer.trace("retrievePlayers", () => {
+    return originalretrievePlayers(tenantDB, ids);
+  })
+  
+}
+async function originalretrievePlayers(tenantDB: Database, ids: string[]): Promise<PlayerRow[]> {
+  try {
+    // XXX: https://stackoverflow.com/questions/4788724/sqlite-bind-list-of-values-to-where-col-in-prm
+    const hatena = ids.map(() => "?").join(",")
+    const playerRow = await tenantDB.all<PlayerRow[]>(`SELECT * FROM player WHERE id IN (${hatena})`, ids)
+    return playerRow ?? []
+  } catch (error) {
+    throw new Error(`error Select players: ids=${ids}, ${error}`)
+  }
+}
+
 // 参加者を認可する
 // 参加者向けAPIで呼ばれる
+
 async function authorizePlayer(tenantDB: mysql.Pool, id: string): Promise<Error | undefined> {
+  return tracer.trace("authorizePlayer", () => {
+    return originalAuthorizePlayer(tenantDB, id);
+  })
+}
+async function originalAuthorizePlayer(tenantDB: mysql.Pool, id: string): Promise<Error | undefined> {
   try {
     const player = await retrievePlayer(tenantDB, id)
     if (!player) {
@@ -416,12 +432,36 @@ async function authorizePlayer(tenantDB: mysql.Pool, id: string): Promise<Error 
 }
 
 // 大会を取得する
+
 async function retrieveCompetition(tenantDB: mysql.Pool, id: string): Promise<CompetitionRow | undefined> {
+  return tracer.trace("retrieveCompetition", () => {
+    return originalRetrieveCompetition(tenantDB, id);
+  })
+}
+async function originalRetrieveCompetition(tenantDB: mysql.Pool, id: string): Promise<CompetitionRow | undefined> {
   try {
     const [[competitionRow]] = await tenantDB.query<(CompetitionRow & RowDataPacket)[]>('SELECT * FROM competition WHERE id = ?', [id])
     return competitionRow
   } catch (error) {
     throw new Error(`error Select competition: id=${id}, ${error}`)
+  }
+}
+
+// 大会の一覧を取得する
+async function retrieveCompetitions(tenantDB: Database, ids: string[]): Promise<CompetitionRow[]> {
+  return tracer.trace("retrieveCompetitions", () => {
+    return originalretrieveCompetitions(tenantDB, ids);
+  })
+}
+
+async function originalretrieveCompetitions(tenantDB: Database, ids: string[]): Promise<CompetitionRow[]> {
+  try {
+    // XXX: https://stackoverflow.com/questions/4788724/sqlite-bind-list-of-values-to-where-col-in-prm
+    const hatena = ids.map(() => "?").join(",")
+    const competitionRow = await tenantDB.all<CompetitionRow[]>(`SELECT * FROM competition WHERE id IN (${hatena})`, ids)
+    return competitionRow ?? []
+  } catch (error) {
+    throw new Error(`error Select competition: ids=${ids}, ${error}`)
   }
 }
 
@@ -437,6 +477,11 @@ async function asyncSleep(ms: number) {
 
 // 排他ロックする
 async function flockByTenantID(tenantId: number): Promise<() => Promise<void>> {
+  return tracer.trace("flockByTenantID", { type: "lock" }, () => {
+    return originalFlockByTenantID(tenantId);
+  })
+}
+async function originalFlockByTenantID(tenantId: number): Promise<() => Promise<void>> {
   const p = lockFilePath(tenantId)
 
   const fd = openSync(p, 'w+')
@@ -1274,8 +1319,11 @@ app.get(
             pss.push(ps)
           }
 
+          const ids = pss.map(ps => ps.competition_id);
+          const comps = await retrieveCompetitions(tenantDB, ids)
+          const compMap = new Map(comps.map((comp) => [comp.id, comp]));
           for (const ps of pss) {
-            const comp = await retrieveCompetition(tenantDB, ps.competition_id)
+            const comp = compMap.get(ps.competition_id);
             if (!comp) {
               throw new Error('error retrieveCompetition')
             }
@@ -1371,6 +1419,11 @@ app.get(
 
           const scoredPlayerSet: { [player_id: string]: number } = {}
           const tmpRanks: (CompetitionRank & WithRowNum)[] = []
+
+          const ids = pss.map(ps => ps.player_id);
+          const players = await retrievePlayers(tenantDB, ids);
+          const playerMap = new Map(players.map(player => ([player.id, player])))
+
           for (const ps of pss) {
             // player_scoreが同一player_id内ではrow_numの降順でソートされているので
             // 現れたのが2回目以降のplayer_idはより大きいrow_numでスコアが出ているとみなせる
@@ -1378,7 +1431,7 @@ app.get(
               continue
             }
             scoredPlayerSet[ps.player_id] = 1
-            const p = await retrievePlayer(tenantDB, ps.player_id)
+            const p = playerMap.get(ps.player_id)
             if (!p) {
               throw new Error('error retrievePlayer')
             }
