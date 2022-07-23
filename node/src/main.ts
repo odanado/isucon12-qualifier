@@ -54,6 +54,7 @@ const dbConfig = {
   database: process.env['ISUCON_DB_NAME'] ?? 'isucon_listen80',
 }
 const adminDB = mysql.createPool(dbConfig)
+const tenantDBMaster = mysql.createPool(dbConfig)
 
 // テナントDBのパスを返す
 function tenantDBPath(id: number): string {
@@ -389,7 +390,7 @@ async function retrieveTenantRowFromHeader(req: Request): Promise<TenantRow | un
 // 参加者を取得する
 async function retrievePlayer(tenantDB: Database, id: string): Promise<PlayerRow | undefined> {
   try {
-    const playerRow = await tenantDB.get<PlayerRow>('SELECT * FROM player WHERE id = ?', id)
+    const [[playerRow]] = await tenantDB.query<(PlayerRow & RowDataPacket)[]>('SELECT * FROM player WHERE id = ?', [id])
     return playerRow
   } catch (error) {
     throw new Error(`error Select player: id=${id}, ${error}`)
@@ -416,7 +417,7 @@ async function authorizePlayer(tenantDB: Database, id: string): Promise<Error | 
 // 大会を取得する
 async function retrieveCompetition(tenantDB: Database, id: string): Promise<CompetitionRow | undefined> {
   try {
-    const competitionRow = await tenantDB.get<CompetitionRow>('SELECT * FROM competition WHERE id = ?', id)
+    const [[competitionRow]] = await tenantDB.query<(CompetitionRow & RowDataPacket)[]>('SELECT * FROM competition WHERE id = ?', [id])
     return competitionRow
   } catch (error) {
     throw new Error(`error Select competition: id=${id}, ${error}`)
@@ -658,7 +659,7 @@ app.get(
           billing: 0,
         }
 
-        const tenantDB = await connectToTenantDB(tenant.id)
+        const tenantDB = tenantDBMaster
         try {
           const competitions = await tenantDB.all<CompetitionRow[]>(
             'SELECT * FROM competition WHERE tenant_id = ?',
@@ -709,7 +710,7 @@ app.get(
       }
 
       const pds: PlayerDetail[] = []
-      const tenantDB = await connectToTenantDB(viewer.tenantId)
+      const tenantDB = tenantDBMaster
       try {
         const pls = await tenantDB.all<PlayerRow[]>(
           'SELECT * FROM player WHERE tenant_id = ? ORDER BY created_at DESC',
@@ -755,7 +756,7 @@ app.post(
       }
 
       const pds: PlayerDetail[] = []
-      const tenantDB = await connectToTenantDB(viewer.tenantId)
+      const tenantDB = tenantDBMaster
       try {
         const displayNames: string[] = req.body['display_name[]']
 
@@ -829,7 +830,7 @@ app.post(
 
       const now = Math.floor(new Date().getTime() / 1000)
       let pd: PlayerDetail
-      const tenantDB = await connectToTenantDB(viewer.tenantId)
+      const tenantDB = tenantDBMaster
       try {
         try {
           await tenantDB.run('UPDATE player SET is_disqualified = ?, updated_at = ? WHERE id = ?', true, now, playerId)
@@ -889,7 +890,7 @@ app.post(
       const { title } = req.body
       const now = Math.floor(new Date().getTime() / 1000)
       const id = await dispenseID()
-      const tenantDB = await connectToTenantDB(viewer.tenantId)
+      const tenantDB = tenantDBMaster
       try {
         await tenantDB.run(
           'INSERT INTO competition (id, tenant_id, title, finished_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
@@ -947,7 +948,7 @@ app.post(
       }
 
       const now = Math.floor(new Date().getTime() / 1000)
-      const tenantDB = await connectToTenantDB(viewer.tenantId)
+      const tenantDB = tenantDBMaster
       try {
         const competition = await retrieveCompetition(tenantDB, competitionId)
         if (!competition) {
@@ -995,7 +996,7 @@ app.post(
       }
 
       const playerScoreRows: PlayerScoreRow[] = []
-      const tenantDB = await connectToTenantDB(viewer.tenantId)
+      const tenantDB = tenantDBMaster
       try {
         const competition = await retrieveCompetition(tenantDB, competitionId)
         if (!competition) {
@@ -1130,7 +1131,7 @@ app.get(
       }
 
       const reports: BillingReport[] = []
-      const tenantDB = await connectToTenantDB(viewer.tenantId)
+      const tenantDB = tenantDBMaster
       try {
         const competitions = await tenantDB.all<CompetitionRow[]>(
           'SELECT * FROM competition WHERE tenant_id=? ORDER BY created_at DESC',
@@ -1201,7 +1202,7 @@ app.get(
         throw new ErrorWithStatus(403, 'role organizer required')
       }
 
-      const tenantDB = await connectToTenantDB(viewer.tenantId)
+      const tenantDB = tenantDBMaster
       try {
         await competitionsHandler(req, res, viewer, tenantDB)
       } finally {
@@ -1235,7 +1236,7 @@ app.get(
 
       let pd: PlayerDetail
       const psds: PlayerScoreDetail[] = []
-      const tenantDB = await connectToTenantDB(viewer.tenantId)
+      const tenantDB = tenantDBMaster
       try {
         const error = await authorizePlayer(tenantDB, viewer.playerId)
         if (error) {
@@ -1260,12 +1261,10 @@ app.get(
         const unlock = await flockByTenantID(viewer.tenantId)
         try {
           for (const comp of competitions) {
-            const ps = await tenantDB.get<PlayerScoreRow>(
+            const [[ps]] = await tenantDB.query<(PlayerScoreRow & RowDataPacket)[]>(
               // 最後にCSVに登場したスコアを採用する = row_numが一番大きいもの
               'SELECT * FROM player_score WHERE tenant_id = ? AND competition_id = ? AND player_id = ? ORDER BY row_num DESC LIMIT 1',
-              viewer.tenantId,
-              comp.id,
-              p.id
+              [viewer.tenantId, comp.id, p.id],
             )
             if (!ps) {
               // 行がない = スコアが記録されてない
@@ -1328,7 +1327,7 @@ app.get(
 
       let cd: CompetitionDetail
       const ranks: CompetitionRank[] = []
-      const tenantDB = await connectToTenantDB(viewer.tenantId)
+      const tenantDB = tenantDBMaster
       try {
         const error = await authorizePlayer(tenantDB, viewer.playerId)
         if (error) {
@@ -1446,7 +1445,7 @@ app.get(
         throw new ErrorWithStatus(403, 'role player required')
       }
 
-      const tenantDB = await connectToTenantDB(viewer.tenantId)
+      const tenantDB = tenantDBMaster
       try {
         const error = await authorizePlayer(tenantDB, viewer.playerId)
         if (error) {
@@ -1497,7 +1496,7 @@ app.get(
         })
       }
 
-      const tenantDB = await connectToTenantDB(viewer.tenantId)
+      const tenantDB = tenantDBMaster
       try {
         const p = await retrievePlayer(tenantDB, viewer.playerId)
         if (!p) {
