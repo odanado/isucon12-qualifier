@@ -456,7 +456,7 @@ async function originalretrieveCompetitions(tenantDB: Database, ids: string[]): 
   try {
     // XXX: https://stackoverflow.com/questions/4788724/sqlite-bind-list-of-values-to-where-col-in-prm
     const hatena = ids.map(() => "?").join(",")
-    const competitionRow = await tenantDB.all<CompetitionRow[]>(`SELECT * FROM competition WHERE id = (${hatena})`, ids)
+    const competitionRow = await tenantDB.all<CompetitionRow[]>(`SELECT * FROM competition WHERE id IN (${hatena})`, ids)
     return competitionRow ?? []
   } catch (error) {
     throw new Error(`error Select competition: ids=${ids}, ${error}`)
