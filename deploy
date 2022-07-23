@@ -2,7 +2,7 @@
 set -ex
 
 ROOT=$(cd $(dirname $0);pwd)
-SERVER_PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
+# SERVER_PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
 
 echo "start deploy ${USER}"
 for server in isu1; do
@@ -20,7 +20,7 @@ for server in isu1; do
     rsync -a --rsync-path="sudo rsync" $ROOT/mysql/mysql.conf.d/ $server:/etc/mysql/mysql.conf.d/
     rsync -a --rsync-path="sudo rsync" $ROOT/system/isuports.service $server:/etc/systemd/system/isuports.service
 
-    ssh -t $server "export PATH=$SERVER_PATH; cd webapp/node/; pwd; npm ci"
+    # ssh -t $server "export PATH=$SERVER_PATH; cd webapp/node/; pwd; npm ci"
 
     ssh -t $server "sudo systemctl daemon-reload"
     ssh -t $server "sudo systemctl start isuports.service"
