@@ -297,6 +297,11 @@ const wrap =
 
 // リクエストヘッダをパースしてViewerを返す
 async function parseViewer(req: Request): Promise<Viewer> {
+  return tracer.trace("parseViewer", async () => {
+    return originalParseViewer(req);
+  })
+}
+async function originalParseViewer(req: Request): Promise<Viewer> {
   const tokenStr = req.cookies[cookieName]
   if (!tokenStr) {
     throw new ErrorWithStatus(401, `cookie ${cookieName} is not found`)
@@ -388,6 +393,11 @@ async function retrieveTenantRowFromHeader(req: Request): Promise<TenantRow | un
 
 // 参加者を取得する
 async function retrievePlayer(tenantDB: Database, id: string): Promise<PlayerRow | undefined> {
+  return tracer.trace("retrievePlayer", () => {
+    return originalRetrievePlayer(tenantDB, id);
+  })
+}
+async function originalRetrievePlayer(tenantDB: Database, id: string): Promise<PlayerRow | undefined> {
   try {
     const playerRow = await tenantDB.get<PlayerRow>('SELECT * FROM player WHERE id = ?', id)
     return playerRow
@@ -398,7 +408,13 @@ async function retrievePlayer(tenantDB: Database, id: string): Promise<PlayerRow
 
 // 参加者を認可する
 // 参加者向けAPIで呼ばれる
+
 async function authorizePlayer(tenantDB: Database, id: string): Promise<Error | undefined> {
+  return tracer.trace("authorizePlayer", () => {
+    return originalAuthorizePlayer(tenantDB, id);
+  })
+}
+async function originalAuthorizePlayer(tenantDB: Database, id: string): Promise<Error | undefined> {
   try {
     const player = await retrievePlayer(tenantDB, id)
     if (!player) {
@@ -414,7 +430,13 @@ async function authorizePlayer(tenantDB: Database, id: string): Promise<Error | 
 }
 
 // 大会を取得する
+
 async function retrieveCompetition(tenantDB: Database, id: string): Promise<CompetitionRow | undefined> {
+  return tracer.trace("retrieveCompetition", () => {
+    return originalRetrieveCompetition(tenantDB, id);
+  })
+}
+async function originalRetrieveCompetition(tenantDB: Database, id: string): Promise<CompetitionRow | undefined> {
   try {
     const competitionRow = await tenantDB.get<CompetitionRow>('SELECT * FROM competition WHERE id = ?', id)
     return competitionRow
