@@ -1,9 +1,5 @@
 USE `isuports`;
 
-DROP TABLE IF EXISTS `tenant`;
-DROP TABLE IF EXISTS `id_generator`;
-DROP TABLE IF EXISTS `visit_history`;
-
 CREATE TABLE `tenant` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
   `name` VARCHAR(255) NOT NULL,
