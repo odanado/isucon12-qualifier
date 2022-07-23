@@ -457,6 +457,11 @@ async function asyncSleep(ms: number) {
 
 // 排他ロックする
 async function flockByTenantID(tenantId: number): Promise<() => Promise<void>> {
+  return tracer.trace("flockByTenantID", () => {
+    return originalFlockByTenantID(tenantId);
+  })
+}
+async function originalFlockByTenantID(tenantId: number): Promise<() => Promise<void>> {
   const p = lockFilePath(tenantId)
 
   const fd = openSync(p, 'w+')
