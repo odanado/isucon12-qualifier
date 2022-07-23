@@ -11,6 +11,6 @@ fi
 # echo .dump | sqlite3 "$1" | \
 	# perl -pE 's/PRAGMA foreign_keys=OFF;//; s/^CREATE TABLE /CREATE TABLE IF NOT EXISTS /; s/BEGIN TRANSACTION/BEGIN/g'
 
-sqlite3 -csv "$1" "select * from competition;" > competition.csv
-sqlite3 -csv "$1" "select * from player;" > player.csv
-sqlite3 -csv "$1" "select * from player_score;" > player_score.csv
+sqlite3 -csv "$1" "select * from competition;" >> competition.csv
+sqlite3 -csv "$1" "select * from player;" >> player.csv
+sqlite3 -csv "$1" "select * from player_score;" >> player_score.csv
