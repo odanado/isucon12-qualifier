@@ -445,6 +445,24 @@ async function originalRetrieveCompetition(tenantDB: Database, id: string): Prom
   }
 }
 
+// 大会の一覧を取得する
+async function retrieveCompetitions(tenantDB: Database, ids: string[]): Promise<CompetitionRow[]> {
+  return tracer.trace("retrieveCompetitions", () => {
+    return originalretrieveCompetitions(tenantDB, ids);
+  })
+}
+
+async function originalretrieveCompetitions(tenantDB: Database, ids: string[]): Promise<CompetitionRow[]> {
+  try {
+    // XXX: https://stackoverflow.com/questions/4788724/sqlite-bind-list-of-values-to-where-col-in-prm
+    const hatena = ids.map(() => "?").join(",")
+    const competitionRow = await tenantDB.all<CompetitionRow[]>(`SELECT * FROM competition WHERE id = (${hatena})`, ids)
+    return competitionRow ?? []
+  } catch (error) {
+    throw new Error(`error Select competition: ids=${ids}, ${error}`)
+  }
+}
+
 // 排他ロックのためのファイル名を生成する
 function lockFilePath(tenantId: number): string {
   const tenantDBDir = getEnv('ISUCON_TENANT_DB_DIR', '../tenant_db')
@@ -1302,8 +1320,11 @@ app.get(
             pss.push(ps)
           }
 
+          const ids = pss.map(ps => ps.competition_id);
+          const comps = await retrieveCompetitions(tenantDB, ids)
+          const compMap = new Map(comps.map((comp) => [comp.id, comp]));
           for (const ps of pss) {
-            const comp = await retrieveCompetition(tenantDB, ps.competition_id)
+            const comp = compMap.get(ps.competition_id);
             if (!comp) {
               throw new Error('error retrieveCompetition')
             }
