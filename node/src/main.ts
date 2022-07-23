@@ -1,3 +1,7 @@
+import { setupDatadog } from "./setup-tracing";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const tracer = setupDatadog();
+
 import express, { Request, Response, NextFunction, RequestHandler } from 'express'
 import cookieParser from 'cookie-parser'
 import bodyParser from 'body-parser'
