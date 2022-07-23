@@ -5,7 +5,7 @@ ROOT=$(cd $(dirname $0);pwd)
 # SERVER_PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
 
 echo "start deploy ${USER}"
-for server in isu2; do
+for server in isu1; do
     ssh -t $server "sudo systemctl stop isuports.service"
     ssh -t $server "sudo systemctl stop nginx.service"
     ssh -t $server "sudo systemctl stop mysql.service"
