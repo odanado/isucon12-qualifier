@@ -696,6 +696,13 @@ app.get(
 
       ts = beforeId === 0 ? ts.slice(0, 10) : ts.filter((tenant) => tenant.id < beforeId).slice(0, 10)
 
+      const tenantIds = ts.map((tenant) => tenant.id)
+
+      const [competitions] = await tenantDB.query<(CompetitionRow & RowDataPacket)[]>(
+        'SELECT * FROM competition WHERE tenant_id IN (?)',
+        tenantIds
+      )
+
       for (const tenant of ts) {
         const tb: TenantWithBilling = {
           id: tenant.id.toString(),
@@ -704,12 +711,9 @@ app.get(
           billing: 0,
         }
 
-        const [competitions] = await tenantDB.query<(CompetitionRow & RowDataPacket)[]>(
-          'SELECT * FROM competition WHERE tenant_id = ?',
-          [tenant.id]
-        )
+        const competitionsByTenant = competitions.filter((comp) => comp.tenant_id === tenant.id)
 
-        for (const comp of competitions) {
+        for (const comp of competitionsByTenant) {
           const report = await billingReportByCompetition(tenantDB, tenant.id, comp.id)
           tb.billing += report.billing_yen
         }
