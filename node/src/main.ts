@@ -388,7 +388,7 @@ async function retrieveTenantRowFromHeader(req: Request): Promise<TenantRow | un
 }
 
 // 参加者を取得する
-async function retrievePlayer(tenantDB: Database, id: string): Promise<PlayerRow | undefined> {
+async function retrievePlayer(tenantDB: mysql.Pool, id: string): Promise<PlayerRow | undefined> {
   try {
     const [[playerRow]] = await tenantDB.query<(PlayerRow & RowDataPacket)[]>('SELECT * FROM player WHERE id = ?', [id])
     return playerRow
@@ -399,7 +399,7 @@ async function retrievePlayer(tenantDB: Database, id: string): Promise<PlayerRow
 
 // 参加者を認可する
 // 参加者向けAPIで呼ばれる
-async function authorizePlayer(tenantDB: Database, id: string): Promise<Error | undefined> {
+async function authorizePlayer(tenantDB: mysql.Pool, id: string): Promise<Error | undefined> {
   try {
     const player = await retrievePlayer(tenantDB, id)
     if (!player) {
@@ -415,7 +415,7 @@ async function authorizePlayer(tenantDB: Database, id: string): Promise<Error | 
 }
 
 // 大会を取得する
-async function retrieveCompetition(tenantDB: Database, id: string): Promise<CompetitionRow | undefined> {
+async function retrieveCompetition(tenantDB: mysql.Pool, id: string): Promise<CompetitionRow | undefined> {
   try {
     const [[competitionRow]] = await tenantDB.query<(CompetitionRow & RowDataPacket)[]>('SELECT * FROM competition WHERE id = ?', [id])
     return competitionRow
@@ -537,7 +537,7 @@ function validateTenantName(name: string): boolean {
 
 // 大会ごとの課金レポートを計算する
 async function billingReportByCompetition(
-  tenantDB: Database,
+  tenantDB: mysql.Pool,
   tenantId: number,
   competitionId: string
 ): Promise<BillingReport> {
@@ -1162,7 +1162,7 @@ app.get(
   })
 )
 
-async function competitionsHandler(req: Request, res: Response, viewer: Viewer, tenantDB: Database) {
+async function competitionsHandler(req: Request, res: Response, viewer: Viewer, tenantDB: mysql.Pool) {
   try {
     const competitions = await tenantDB.all<CompetitionRow[]>(
       'SELECT * FROM competition WHERE tenant_id = ? ORDER BY created_at DESC',
