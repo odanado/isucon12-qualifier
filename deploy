@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -ex
+
+ROOT=$(cd $(dirname $0);pwd)
+# SERVER_PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
+
+echo "start deploy ${USER}"
+for server in isu1; do
+    ssh -t $server "sudo systemctl stop isuports.service"
+    ssh -t $server "sudo systemctl stop nginx.service"
+    ssh -t $server "sudo systemctl stop mysql.service"
+
+    rsync -a --rsync-path="sudo -u isucon rsync" --exclude "node_modules" $ROOT/node/ $server:/home/isucon/webapp/node/
+    rsync -a --rsync-path="sudo -u isucon rsync" $ROOT/sql/ $server:/home/isucon/webapp/sql/
+    rsync -a --rsync-path="sudo -u isucon rsync" $ROOT/docker-compose-node.yml $server:/home/isucon/webapp/docker-compose-node.yml
+    rsync -a --rsync-path="sudo rsync" $ROOT/nginx/sites-available/ $server:/etc/nginx/sites-available/
+    rsync -a --rsync-path="sudo rsync" $ROOT/nginx/nginx.conf $server:/etc/nginx/nginx.conf
+    rsync -a --rsync-path="sudo rsync" $ROOT/mysql/mysql.cnf $server:/etc/mysql/mysql.cnf
+    rsync -a --rsync-path="sudo rsync" $ROOT/mysql/conf.d/ $server:/etc/mysql/conf.d/
+    rsync -a --rsync-path="sudo rsync" $ROOT/mysql/mysql.conf.d/ $server:/etc/mysql/mysql.conf.d/
+    rsync -a --rsync-path="sudo rsync" $ROOT/system/isuports.service $server:/etc/systemd/system/isuports.service
+
+    # ssh -t $server "export PATH=$SERVER_PATH; cd webapp/node/; pwd; npm ci"
+
+    ssh -t $server "sudo systemctl daemon-reload"
+    ssh -t $server "sudo systemctl start isuports.service"
+    ssh -t $server "sudo systemctl start nginx.service"
+    # ref: https://abyssluke.hatenablog.com/entry/2015/12/11/203707
+    ssh -t $server "sudo nginx -s reload"
+    ssh -t $server "sudo systemctl start mysql.service"
+done
