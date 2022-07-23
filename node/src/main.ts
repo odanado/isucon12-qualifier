@@ -683,7 +683,7 @@ app.get(
       //     scoreに登録されていないplayerでアクセスした人 * 10
       //   を合計したものを
       // テナントの課金とする
-      const ts: TenantRow[] = []
+      let ts: TenantRow[] = []
       const tenantBillings: TenantWithBilling[] = []
       try {
         const [tenants] = await adminDB.query<(TenantRow & RowDataPacket)[]>('SELECT * FROM tenant ORDER BY id DESC')
@@ -694,11 +694,9 @@ app.get(
 
       const tenantDB = tenantDBMaster
 
-      for (const tenant of ts) {
-        if (beforeId !== 0 && beforeId <= tenant.id) {
-          continue
-        }
+      ts = beforeId === 0 ? ts.slice(0, 10) : ts.filter((tenant) => tenant.id < beforeId).slice(0, 10)
 
+      for (const tenant of ts) {
         const tb: TenantWithBilling = {
           id: tenant.id.toString(),
           name: tenant.name,
@@ -717,9 +715,6 @@ app.get(
         }
 
         tenantBillings.push(tb)
-        if (tenantBillings.length >= 10) {
-          break
-        }
       }
 
       res.status(200).json({
