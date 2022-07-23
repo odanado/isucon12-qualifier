@@ -388,6 +388,24 @@ async function originalRetrievePlayer(tenantDB: Database, id: string): Promise<P
   }
 }
 
+// 参加者一覧を取得する
+async function retrievePlayers(tenantDB: Database, ids: string[]): Promise<PlayerRow[]> {
+  return tracer.trace("retrievePlayers", () => {
+    return originalretrievePlayers(tenantDB, ids);
+  })
+  
+}
+async function originalretrievePlayers(tenantDB: Database, ids: string[]): Promise<PlayerRow[]> {
+  try {
+    // XXX: https://stackoverflow.com/questions/4788724/sqlite-bind-list-of-values-to-where-col-in-prm
+    const hatena = ids.map(() => "?").join(",")
+    const playerRow = await tenantDB.all<PlayerRow[]>(`SELECT * FROM player WHERE id IN (${hatena})`, ids)
+    return playerRow ?? []
+  } catch (error) {
+    throw new Error(`error Select players: ids=${ids}, ${error}`)
+  }
+}
+
 // 参加者を認可する
 // 参加者向けAPIで呼ばれる
 
@@ -1376,6 +1394,11 @@ app.get(
 
           const scoredPlayerSet: { [player_id: string]: number } = {}
           const tmpRanks: (CompetitionRank & WithRowNum)[] = []
+
+          const ids = pss.map(ps => ps.player_id);
+          const players = await retrievePlayers(tenantDB, ids);
+          const playerMap = new Map(players.map(player => ([player.id, player])))
+
           for (const ps of pss) {
             // player_scoreが同一player_id内ではrow_numの降順でソートされているので
             // 現れたのが2回目以降のplayer_idはより大きいrow_numでスコアが出ているとみなせる
@@ -1383,7 +1406,7 @@ app.get(
               continue
             }
             scoredPlayerSet[ps.player_id] = 1
-            const p = await retrievePlayer(tenantDB, ps.player_id)
+            const p = playerMap.get(ps.player_id)
             if (!p) {
               throw new Error('error retrievePlayer')
             }
