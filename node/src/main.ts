@@ -457,7 +457,7 @@ async function asyncSleep(ms: number) {
 
 // 排他ロックする
 async function flockByTenantID(tenantId: number): Promise<() => Promise<void>> {
-  return tracer.trace("flockByTenantID", () => {
+  return tracer.trace("flockByTenantID", { type: "lock" }, () => {
     return originalFlockByTenantID(tenantId);
   })
 }
