@@ -1,0 +1,14 @@
+#!/bin/sh
+
+set -eux
+
+# Redis の初期化用に CSV を書き出すくん
+
+rm -f /home/isucon/webapp/sql/player_score.csv
+touch /home/isucon/webapp/sql/player_score.csv
+
+for i in $(seq 1 100)
+do
+   sqlite3 /home/isucon/initial_data/$i.db "select tenant_id,competition_id,player_id,score from player_score" | sed "s/|/,/g" >> /home/isucon/webapp/sql/player_score.csv
+done
+
